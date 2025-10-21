@@ -10,12 +10,6 @@
       "runtime": "nodejs18.x"
     }
   },
-  "crons": [
-    {
-      "path": "/api/checkMentions",
-      "schedule": "*/5 * * * *"
-    }
-  ],
   "headers": [
     {
       "source": "/api/teckaibot",

@@ -93,7 +93,14 @@ An intelligent, serverless Twitter bot that automatically responds to mentions w
 1. Fork this repository
 2. Set up your Twitter Developer credentials
 3. Obtain your Groq API key
-4. Configure environment variables in Vercel
+4. Configure environment variables in Vercel:
+   - `BOT_USERNAME`: Your bot's Twitter username (without @ symbol)
+   - `TWITTER_BEARER_TOKEN`: Your Twitter Bearer Token
+   - `TWITTER_APP_KEY`: Your Twitter Consumer Key
+   - `TWITTER_APP_SECRET`: Your Twitter Consumer Secret
+   - `TWITTER_ACCESS_TOKEN`: Your Twitter Access Token
+   - `TWITTER_ACCESS_SECRET`: Your Twitter Access Token Secret
+   - `GROQ_API_KEY`: Your Groq API Key
 5. Deploy with one click
 
 Your bot will automatically start responding to mentions within 5 minutes!
@@ -121,4 +128,4 @@ Your bot will automatically start responding to mentions within 5 minutes!
 
 ---
 
-*Transform your Twitter presence with AI-powered crypto insights. Deploy TeckAI-XBOT today and engage your community with intelligent, automated responses.*
+*Powered by [Aura API](https://aura.adex.network) for real-time wallet analytics and [Groq AI](https://groq.com) for intelligent responses. Transform your Twitter presence with AI-powered crypto insights. Deploy TeckAI-XBOT today and engage your community with intelligent, automated responses.*
