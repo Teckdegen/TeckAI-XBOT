@@ -13,6 +13,7 @@ module.exports = async (req, res) => {
       const TWITTER_CONSUMER_SECRET = process.env.TWITTER_APP_SECRET;
 
       if (!TWITTER_CONSUMER_SECRET) {
+        console.error('TWITTER_APP_SECRET not set');
         return res.status(500).json({ error: 'TWITTER_APP_SECRET not set' });
       }
 
@@ -60,13 +61,18 @@ module.exports = async (req, res) => {
         const requiredEnvVars = ['TWITTER_BEARER_TOKEN', 'BOT_USERNAME', 'GROQ_API_KEY'];
         for (const envVar of requiredEnvVars) {
           if (!process.env[envVar]) {
+            console.error(`Environment variable ${envVar} is not set`);
             throw new Error(`Environment variable ${envVar} is not set`);
           }
         }
 
+        console.log('All required env vars are set, importing checkMentions...');
+
         // Import and run the mention checking function
         const { default: checkMentions } = await import('./checkMentions.js');
+        console.log('checkMentions imported successfully, running...');
         await checkMentions(req, res);
+        console.log('checkMentions executed successfully');
       } catch (error) {
         console.error('Manual check error:', error);
         let statusCode = 500;
