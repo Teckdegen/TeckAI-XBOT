@@ -68,9 +68,18 @@ module.exports = async (req, res) => {
 
         console.log('All required env vars are set, importing checkMentions...');
 
-        // Import and run the mention checking function
-        const { default: checkMentions } = await import('./checkMentions.js');
-        console.log('checkMentions imported successfully, running...');
+        // Import and run the mention checking function with error handling
+        let checkMentions;
+        try {
+          const module = await import('./checkMentions.js');
+          checkMentions = module.default;
+          console.log('checkMentions imported successfully');
+        } catch (importError) {
+          console.error('Import error for checkMentions.js:', importError);
+          throw new Error(`Failed to import checkMentions.js: ${importError.message}`);
+        }
+
+        console.log('Running checkMentions...');
         await checkMentions(req, res);
         console.log('checkMentions executed successfully');
       } catch (error) {
@@ -83,6 +92,8 @@ module.exports = async (req, res) => {
           suggestion = 'API rate limit exceeded. Wait or upgrade your plan.';
         } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
           suggestion = 'Check API keys and permissions.';
+        } else if (error.message.includes('import') || error.message.includes('Cannot resolve module')) {
+          suggestion = 'Check file paths and syntax in checkMentions.js.';
         }
 
         return res.status(statusCode).json({
