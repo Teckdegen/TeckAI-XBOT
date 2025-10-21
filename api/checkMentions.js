@@ -3,7 +3,7 @@ import { generateGroqResponse } from '../utils/twitter.js';
 import { postTwitterReply } from '../utils/twitter.js';
 import { addProcessedTweet, isTweetProcessed, getProcessingStats } from '../utils/stateManager.js';
 
-// Vercel serverless function to check mentions with timeout handling
+// Vercel serverless function to check mentions with enhanced error handling
 export default async function handler(req, res) {
   // Only allow GET requests
   if (req.method !== 'GET') {
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const stats = await getProcessingStats();
     console.log(`Processing stats: ${JSON.stringify(stats)}`);
 
-    // Search for recent mentions of the bot with timeout
+    // Search for recent mentions of the bot with retry logic
     const searchParams = {
       max_results: 10,
       'tweet.fields': ['id', 'text', 'author_id', 'created_at'],
@@ -37,11 +37,7 @@ export default async function handler(req, res) {
       expansions: ['author_id']
     };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for Twitter API
-
-    const mentions = await readOnlyClient.v2.search(`@${botUsername} -is:retweet`, searchParams);
-    clearTimeout(timeoutId);
+    const mentions = await retryApiCall(() => readOnlyClient.v2.search(`@${botUsername} -is:retweet`, searchParams), 'Twitter Search');
 
     let processedCount = 0;
     let errors = [];
@@ -81,15 +77,11 @@ export default async function handler(req, res) {
           if (walletAddress) {
             console.log(`Found wallet address: ${walletAddress}`);
             try {
-              // Fetch wallet data with timeout
-              const walletController = new AbortController();
-              const walletTimeoutId = setTimeout(() => walletController.abort(), 8000); // 8s for Aura APIs
-
+              // Fetch wallet data with retry
               [walletPortfolio, walletStrategies] = await Promise.all([
-                fetchWalletPortfolio(walletAddress, walletController.signal),
-                fetchWalletStrategies(walletAddress, walletController.signal)
+                retryApiCall(() => fetchWalletPortfolio(walletAddress), 'Aura Portfolio'),
+                retryApiCall(() => fetchWalletStrategies(walletAddress), 'Aura Strategies')
               ]);
-              clearTimeout(walletTimeoutId);
               console.log(`Fetched wallet data for ${walletAddress}`);
             } catch (error) {
               console.error(`Error fetching wallet data:`, error);
@@ -98,19 +90,11 @@ export default async function handler(req, res) {
             }
           }
 
-          // Generate AI response with timeout
-          const aiController = new AbortController();
-          const aiTimeoutId = setTimeout(() => aiController.abort(), 8000); // 8s for Groq API
+          // Generate AI response with retry
+          const aiReply = await retryApiCall(() => generateGroqResponse(username, cleanText, walletAddress, walletPortfolio, walletStrategies), 'Groq AI');
 
-          const aiReply = await generateGroqResponse(username, cleanText, walletAddress, walletPortfolio, walletStrategies, aiController.signal);
-          clearTimeout(aiTimeoutId);
-
-          // Post reply to Twitter with timeout
-          const replyController = new AbortController();
-          const replyTimeoutId = setTimeout(() => replyController.abort(), 5000); // 5s for Twitter reply
-
-          await postTwitterReply(tweet.id, aiReply, replyController.signal);
-          clearTimeout(replyTimeoutId);
+          // Post reply to Twitter with retry
+          await retryApiCall(() => postTwitterReply(tweet.id, aiReply), 'Twitter Reply');
 
           // Mark tweet as processed
           await addProcessedTweet(tweet.id, username, tweet.text);
@@ -138,11 +122,19 @@ export default async function handler(req, res) {
   } catch (error) {
     const executionTime = Date.now() - startTime;
     console.error('Error checking mentions:', error);
-    return res.status(500).json({
+    let statusCode = 500;
+    let suggestion = 'Check logs for details or try again later';
+
+    if (error.message.includes('rate limit')) {
+      statusCode = 429;
+      suggestion = 'Twitter API rate limit exceeded. Wait 15 minutes or upgrade your API plan.';
+    }
+
+    return res.status(statusCode).json({
       status: 'error',
       message: `Function error after ${executionTime}ms: ${error.message}`,
       execution_time_ms: executionTime,
-      suggestion: 'Check logs for details or try again later'
+      suggestion
     });
   }
 }
@@ -153,6 +145,26 @@ function extractWalletAddress(text) {
   const walletRegex = /0x[a-fA-F0-9]{40}/g;
   const matches = text.match(walletRegex);
   return matches ? matches[0] : null;
+}
+
+// Retry API calls with exponential backoff for rate limits
+async function retryApiCall(apiCall, apiName, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await apiCall();
+    } catch (error) {
+      if (error.code === 429 || error.message.includes('429')) {
+        if (attempt === maxRetries) {
+          throw new Error(`${apiName} API rate limit exceeded after ${maxRetries} attempts. Try again later.`);
+        }
+        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff (2s, 4s, 8s)
+        console.log(`Rate limit hit for ${apiName}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
 }
 
 // Fetch wallet portfolio data from Aura API

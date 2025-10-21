@@ -2,65 +2,92 @@ const crypto = require('crypto');
 
 // Twitter handler for Vercel serverless function (legacy webhook support)
 module.exports = async (req, res) => {
-  // Handle CRC check for GET requests (Twitter validation) - Legacy webhook support
-  if (req.method === 'GET') {
-    const crcToken = req.query.crc_token;
-    if (!crcToken) {
-      return res.status(400).json({ error: 'Missing crc_token' });
-    }
-
-    const TWITTER_CONSUMER_SECRET = process.env.TWITTER_APP_SECRET;
-
-    // Create HMAC-SHA256 hash using consumer secret
-    const hmac = crypto.createHmac('sha256', TWITTER_CONSUMER_SECRET)
-                     .update(crcToken)
-                     .digest('base64');
-
-    const responseToken = `sha256=${hmac}`;
-
-    return res.status(200).json({
-      response_token: responseToken
-    });
-  }
-
-  // Handle webhook events for POST requests - Legacy webhook support
-  if (req.method === 'POST') {
-    try {
-      const body = req.body;
-
-      // Log the incoming webhook for debugging
-      console.log('Received webhook:', JSON.stringify(body, null, 2));
-
-      // Check if this is a mention/tweet event
-      if (body.tweet_create_events || body.direct_message_events) {
-        await handleMentionEvent(body);
+  try {
+    // Handle CRC check for GET requests (Twitter validation) - Legacy webhook support
+    if (req.method === 'GET') {
+      const crcToken = req.query.crc_token;
+      if (!crcToken) {
+        return res.status(400).json({ error: 'Missing crc_token' });
       }
 
-      // Always return 200 to prevent Twitter retries
-      return res.status(200).json({ status: 'ok' });
+      const TWITTER_CONSUMER_SECRET = process.env.TWITTER_APP_SECRET;
 
-    } catch (error) {
-      console.error('Webhook error:', error);
-      // Still return 200 to prevent retries
-      return res.status(200).json({ status: 'error', message: error.message });
+      if (!TWITTER_CONSUMER_SECRET) {
+        return res.status(500).json({ error: 'TWITTER_APP_SECRET not set' });
+      }
+
+      // Create HMAC-SHA256 hash using consumer secret
+      const hmac = crypto.createHmac('sha256', TWITTER_CONSUMER_SECRET)
+                       .update(crcToken)
+                       .digest('base64');
+
+      const responseToken = `sha256=${hmac}`;
+
+      return res.status(200).json({
+        response_token: responseToken
+      });
     }
-  }
 
-  // New endpoint for manual trigger of mention checking
-  if (req.method === 'PUT') {
-    try {
-      // Import and run the mention checking function
-      const { default: checkMentions } = await import('./checkMentions.js');
-      await checkMentions(req, res);
-    } catch (error) {
-      console.error('Manual check error:', error);
-      return res.status(500).json({ status: 'error', message: error.message });
+    // Handle webhook events for POST requests - Legacy webhook support
+    if (req.method === 'POST') {
+      try {
+        const body = req.body;
+
+        // Log the incoming webhook for debugging
+        console.log('Received webhook:', JSON.stringify(body, null, 2));
+
+        // Check if this is a mention/tweet event
+        if (body.tweet_create_events || body.direct_message_events) {
+          await handleMentionEvent(body);
+        }
+
+        // Always return 200 to prevent Twitter retries
+        return res.status(200).json({ status: 'ok' });
+
+      } catch (error) {
+        console.error('Webhook error:', error);
+        // Still return 200 to prevent retries
+        return res.status(200).json({ status: 'error', message: error.message });
+      }
     }
-    return;
-  }
 
-  // Method not allowed
-  return res.status(405).json({ error: 'Method not allowed' });
+    // New endpoint for manual trigger of mention checking
+    if (req.method === 'PUT') {
+      try {
+        console.log('PUT request received for manual mention check');
+
+        // Check if required environment variables are set
+        const requiredEnvVars = ['TWITTER_BEARER_TOKEN', 'BOT_USERNAME', 'GROQ_API_KEY'];
+        for (const envVar of requiredEnvVars) {
+          if (!process.env[envVar]) {
+            throw new Error(`Environment variable ${envVar} is not set`);
+          }
+        }
+
+        // Import and run the mention checking function
+        const { default: checkMentions } = await import('./checkMentions.js');
+        await checkMentions(req, res);
+      } catch (error) {
+        console.error('Manual check error:', error);
+        return res.status(500).json({
+          status: 'error',
+          message: `Manual check failed: ${error.message}`,
+          suggestion: 'Check logs and environment variables'
+        });
+      }
+      return;
+    }
+
+    // Method not allowed
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (error) {
+    console.error('Unhandled error in teckaibot handler:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: `Internal server error: ${error.message}`,
+      suggestion: 'Contact support or check logs'
+    });
+  }
 };
 
 // Handle mention events (legacy webhook approach)
