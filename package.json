@@ -1,0 +1,30 @@
+{
+  "name": "teckaibot-free-tier",
+  "version": "1.0.0",
+  "description": "Twitter bot using Vercel cron jobs and Groq AI for automated replies (free tier)",
+  "main": "api/teckaibot.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "twitter-api-v2": "^1.15.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "twitter",
+    "bot",
+    "cron",
+    "vercel",
+    "groq",
+    "ai",
+    "serverless",
+    "free-tier"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

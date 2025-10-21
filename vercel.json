@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "functions": {
+    "api/teckaibot.js": {
+      "maxDuration": 30
+    },
+    "api/checkMentions.js": {
+      "maxDuration": 30,
+      "memory": 1024,
+      "runtime": "nodejs18.x"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/checkMentions",
+      "schedule": "*/5 * * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/teckaibot",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    }
+  ],
+  "regions": ["iad1"]
+}
