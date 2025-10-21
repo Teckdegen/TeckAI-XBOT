@@ -8,9 +8,10 @@ import crypto from 'crypto';
  * @param {string|null} walletAddress - Wallet address if found in tweet
  * @param {object|null} walletPortfolio - Portfolio data from Aura API
  * @param {object|null} walletStrategies - Strategy data from Aura API
+ * @param {AbortSignal} signal - Optional AbortSignal for timeout
  * @returns {Promise<string>} - Generated response
  */
-export async function generateGroqResponse(username, tweetText, walletAddress = null, walletPortfolio = null, walletStrategies = null) {
+export async function generateGroqResponse(username, tweetText, walletAddress = null, walletPortfolio = null, walletStrategies = null, signal = null) {
   const GROQ_API_KEY = process.env.GROQ_API_KEY;
   const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
@@ -33,7 +34,7 @@ Provide insights based on this information in your response.`;
 
   const userPrompt = `@${username}: ${cleanText}`;
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const fetchOptions = {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${GROQ_API_KEY}`,
@@ -54,7 +55,13 @@ Provide insights based on this information in your response.`;
       max_tokens: 100,
       temperature: 0.7
     })
-  });
+  };
+
+  if (signal) {
+    fetchOptions.signal = signal;
+  }
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", fetchOptions);
 
   if (!response.ok) {
     throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
@@ -76,9 +83,10 @@ Provide insights based on this information in your response.`;
  * Post reply to Twitter using API v1.1 (statuses/update)
  * @param {string} tweetId - ID of the tweet to reply to
  * @param {string} replyText - Text of the reply
+ * @param {AbortSignal} signal - Optional AbortSignal for timeout
  * @returns {Promise<object>} - Response from Twitter API
  */
-export async function postTwitterReply(tweetId, replyText) {
+export async function postTwitterReply(tweetId, replyText, signal = null) {
   const TWITTER_ACCESS_TOKEN = process.env.TWITTER_ACCESS_TOKEN;
   const TWITTER_ACCESS_SECRET = process.env.TWITTER_ACCESS_SECRET;
   const TWITTER_APP_KEY = process.env.TWITTER_APP_KEY;
@@ -121,7 +129,7 @@ export async function postTwitterReply(tweetId, replyText) {
     .map(key => `${encodeURIComponent(key)}="${encodeURIComponent(oauthParams[key])}"`)
     .join(', ');
 
-  const response = await fetch('https://api.twitter.com/1.1/statuses/update.json', {
+  const fetchOptions = {
     method: 'POST',
     headers: {
       'Authorization': authHeader,
@@ -132,7 +140,13 @@ export async function postTwitterReply(tweetId, replyText) {
       in_reply_to_status_id: tweetId,
       auto_populate_reply_metadata: 'true'
     })
-  });
+  };
+
+  if (signal) {
+    fetchOptions.signal = signal;
+  }
+
+  const response = await fetch('https://api.twitter.com/1.1/statuses/update.json', fetchOptions);
 
   if (!response.ok) {
     const errorData = await response.text();

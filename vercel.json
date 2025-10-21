@@ -5,8 +5,7 @@
       "maxDuration": 30
     },
     "api/checkMentions.js": {
-      "maxDuration": 30,
-      "memory": 1024
+      "maxDuration": 60
     }
   },
   "headers": [
