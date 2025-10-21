@@ -124,17 +124,27 @@ export default async function handler(req, res) {
     console.error('Error checking mentions:', error);
     let statusCode = 500;
     let suggestion = 'Check logs for details or try again later';
+    let detailedMessage = error.message;
 
-    if (error.message.includes('rate limit')) {
+    // Provide specific feedback based on error type
+    if (error.message.includes('rate limit') || error.message.includes('429')) {
       statusCode = 429;
-      suggestion = 'Twitter API rate limit exceeded. Wait 15 minutes or upgrade your API plan.';
+      suggestion = 'API rate limit exceeded. Wait or upgrade your plan.';
+      detailedMessage = `Rate limit error: ${error.message}`;
+    } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+      suggestion = 'Check API keys and permissions.';
+      detailedMessage = `Authentication error: ${error.message}`;
+    } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+      suggestion = 'API server issue. Try again later.';
+      detailedMessage = `Server error: ${error.message}`;
     }
 
     return res.status(statusCode).json({
       status: 'error',
-      message: `Function error after ${executionTime}ms: ${error.message}`,
+      message: `Function failed after ${executionTime}ms: ${detailedMessage}`,
       execution_time_ms: executionTime,
-      suggestion
+      suggestion,
+      error_code: error.code || 'UNKNOWN'
     });
   }
 }

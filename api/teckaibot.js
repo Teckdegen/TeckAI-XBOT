@@ -69,10 +69,21 @@ module.exports = async (req, res) => {
         await checkMentions(req, res);
       } catch (error) {
         console.error('Manual check error:', error);
-        return res.status(500).json({
+        let statusCode = 500;
+        let suggestion = 'Check logs and environment variables';
+
+        if (error.message.includes('rate limit') || error.message.includes('429')) {
+          statusCode = 429;
+          suggestion = 'API rate limit exceeded. Wait or upgrade your plan.';
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          suggestion = 'Check API keys and permissions.';
+        }
+
+        return res.status(statusCode).json({
           status: 'error',
           message: `Manual check failed: ${error.message}`,
-          suggestion: 'Check logs and environment variables'
+          suggestion,
+          error_code: error.code || 'UNKNOWN'
         });
       }
       return;
